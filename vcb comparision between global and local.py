@@ -37,7 +37,7 @@ fc = (Om - Ob) / Om
 fb = Ob / Om
 
 # Blocks, change for better resolution if required
-S_BLOCK = (32, 32, 32)
+S_BLOCK = (256, 256, 256)
 S_HOP   = (16, 16, 16)
 S_NK    = 24
 S_SSTEP = 0.05
@@ -455,7 +455,7 @@ def process_redshift(z_target, npz, vcb_rms_kms, box_vcb_Mpc, delta_file):
     pkint = camb_pk_interpolator(kmax=100.0, zmax=z_target + 1.0)
     k_Mpc = np.logspace(-3.5, np.log10(100.0), 420)
     P_no  = pkint.P(z_target, k_Mpc)
-
+    'You can determine what to plot here, turn on and off to see the effects'
     S_vcbrms_only = solve_S_generic(
         k_Mpc, z_i=999.0, z_tgt=z_target,
         include_thermal=False, include_vcb_rms=True,
@@ -463,7 +463,7 @@ def process_redshift(z_target, npz, vcb_rms_kms, box_vcb_Mpc, delta_file):
     )
     S_th_vcb = solve_S_generic(
         k_Mpc, z_i=999.0, z_tgt=z_target,
-        include_thermal=True, include_vcb_rms=True,
+        include_thermal=False, include_vcb_rms=True,
         vcb_rms_kms=vcb_rms_kms
     )
 
@@ -549,23 +549,23 @@ def process_redshift(z_target, npz, vcb_rms_kms, box_vcb_Mpc, delta_file):
         dR   = make_axes_locatable(ax)
         caxR = dR.append_axes("right", size="2.2%", pad=0.02)
         cbR  = plt.colorbar(imR, cax=caxR, orientation="vertical")
-        cbR.set_label(r'$|v_{cb}|$  [km s$^{-1}$]')
+        cbR.set_label(r'$v_{cb}$  [km s$^{-1}$]')
 
         ax.axvline(L_delta_Mpc, color='k', lw=0.8, alpha=0.7)
         ax.text(0.02*L_delta_Mpc, 0.96*L_delta_Mpc, left_title,  fontsize=10, va='top', ha='left',  transform=ax.transData)
         ax.text(1.02*L_delta_Mpc, 0.96*L_delta_Mpc, right_title, fontsize=10, va='top', ha='left',  transform=ax.transData)
         ax.set_xlim(0, 2*L_delta_Mpc); ax.set_ylim(0, L_delta_Mpc)
         _strip_axes(ax)
-        ax.text(L_delta_Mpc, -0.06*L_delta_Mpc, "x, y in comoving Mpc", ha="center", va="top",
+        ax.text(L_delta_Mpc, -0.06*L_delta_Mpc, "", ha="center", va="top",
                 transform=ax.transData, fontsize=9)
 
     plot_row_merged_top(
         axes[0], delta_top_2d, vcb_2d,
-        r"$\delta_{\rm coll}$ (slice)", r"$|v_{cb}|$ (km s$^{-1}$)"
+        r"$\delta_{\rm coll}$ (slice)", r"$v_{cb}$ (km s$^{-1}$)"
     )
 
-    col_left_title  = r"+ $v_{cb}$ (local)"
-    col_right_title = r"+ Thermal $\oplus v_{cb}$ (local)"
+    col_left_title  = r"+ $v_{cb}$ (global)"
+    col_right_title = r" + $v_{cb}$ (local)"
 
     for i, R in enumerate(R_LIST_Mpc, start=1):
         ax = axes[i]
@@ -576,6 +576,7 @@ def process_redshift(z_target, npz, vcb_rms_kms, box_vcb_Mpc, delta_file):
         fR = fcoll_thvcb_by_R[i-1]
 
         log_vmin, log_vmax = _get_log_bounds([fL, fR])
+
 
         imL = ax.imshow(np.log10(np.maximum(fL, 1e-12)), origin="lower", extent=extL, cmap=FCOLL_CMAP,
                         vmin=log_vmin, vmax=log_vmax, interpolation="nearest")
@@ -601,7 +602,7 @@ def process_redshift(z_target, npz, vcb_rms_kms, box_vcb_Mpc, delta_file):
             ax.text(1.50*L_delta_Mpc, 1.03*L_delta_Mpc, col_right_title,
                     ha='center', va='bottom', fontsize=10, color='k', transform=ax.transData)
 
-    top_note = f"z = {z_target} | L_{{box}} = {L_delta_Mpc:.1f} Mpc"
+    top_note = rf"z = {z_target} | $L_{{\rm box}}$ = {L_delta_Mpc:.1f} Mpc"
     fig.suptitle(top_note, fontsize=14, y=0.99)
     fig.subplots_adjust(top=0.95, bottom=0.05, left=0.04, right=0.96)
 
@@ -615,7 +616,6 @@ def main():
     print("Starting VCB two-models (units in Mpc).")
     os.makedirs(OUTDIR, exist_ok=True)
     npz = np.load(VCB_NPZ_PATH)
-    # —— 始终使用强制盒长 —— 
     L_vcb_Mpc = FORCE_BOXLEN_VALUE_Mpc
     vcb_rms_kms, _ = load_vcb_rms_from_npz(npz)
 
