@@ -128,7 +128,7 @@ def rhs_twofluid(a,y,k_si,include_thermal,vcb_func_or_none,z_tgt, cs_kms_func=No
         cs2 += (cs_kms*1000.0)**2
     if vcb_func_or_none is not None:
         vloc_kms = vcb_func_or_none(z)
-        cs2 += (vloc_kms*1000.0)**2/3.0  # isotropic effective term
+        cs2 += (vloc_kms*1000.0)**2/3.0
 
     press = cs2 * (k_si**2) / (a**4 * H0_SI**2 * E2)
     if not np.isfinite(press): press = 0.0
@@ -182,8 +182,8 @@ def dWdx_tophat(x):
     return out
 
 def sigma2_from_pk(k_h, P_h, R_Mpc, hval=h):
-    k = np.asarray(k_h)*hval            # [1/Mpc]
-    P = np.asarray(P_h)/(hval**3)       # [Mpc^3]
+    k = np.asarray(k_h)*hval
+    P = np.asarray(P_h)/(hval**3)
     ok=(k>0)&np.isfinite(k)&np.isfinite(P)&(P>=0)
     k, P = k[ok], P[ok]
     lnk = np.log(k)
@@ -219,13 +219,14 @@ def f_PS_of_sigma(sigma):
     return np.sqrt(2/np.pi)*nu*np.exp(-0.5*nu**2)
 
 def hmf_from_pk(k_h, P_h, M_grid, use_st=False):
+    M_grid = np.asarray(M_grid, float) / h
     R_grid_Mpc=(3.0*M_grid/(4.0*np.pi*rho_m0_Msun_Mpc3()))**(1.0/3.0)
     sig2  = sigma2_from_pk(k_h, P_h, R_grid_Mpc, hval=h)
     sigma = np.sqrt(np.maximum(sig2, 0.0))
     dlns  = dlnsigma_dlnM_from_pk(k_h, P_h, R_grid_Mpc, M_grid, sigma, hval=h)
     f     = f_PS_of_sigma(sigma)
-    dn    = (rho_m0_Msun_Mpc3()/M_grid) * f * np.abs(dlns)   # [Mpc^-3]
-    return dn*(h**3), sigma  # [h^3 Mpc^-3], sigma
+    dn    = (rho_m0_Msun_Mpc3()/M_grid) * f * np.abs(dlns)
+    return dn*(h**3), sigma
 
 'Extract Power spectrum'
 def _find_delta_npy_for_z(base_dir, z_target):
@@ -244,8 +245,8 @@ def _measure_pk_isotropic_h(delta3d, L_Mpch):
     nbins = max(N//6, 24)
     dk  = np.fft.fftn(delta3d.astype(np.float64))
     dk2 = np.abs(dk)**2
-    P_cube = (L_Mpch**3) * dk2 / (N**6)              # [(Mpc/h)^3]
-    k1d = np.fft.fftfreq(N, d=L_Mpch/N) * 2*np.pi    # [h/Mpc]
+    P_cube = (L_Mpch**3) * dk2 / (N**6)
+    k1d = np.fft.fftfreq(N, d=L_Mpch/N) * 2*np.pi
     kx,ky,kz = np.meshgrid(k1d,k1d,k1d, indexing='ij')
     kk = np.sqrt(kx*kx + ky*ky + kz*kz)
     k_flat = kk.ravel(); p_flat = P_cube.ravel()
@@ -275,20 +276,16 @@ def main():
     OUTDIR_PLOTS = "./hmf_plots_ps"
     os.makedirs(OUTDIR_PLOTS, exist_ok=True)
 
-    # Masses & redshifts
-    M_grid = np.logspace(4, 10, 240)
-    z_list = [30.0, 20.0, 15.0, 10.0, 5.0]
+    M_grid = np.logspace(7.5, 12, 240)
+    z_list = [30.0, 20.0, 15.0, 11.0, 9,7, 5.0]
 
-    # v_cb global RMS (legacy curve) + NPZ
     npz = _load_vcb_npz(VCB_NPZ_PATH)
     vcb_rms_kms = discover_vcb_rms_interp(npz)
 
-    # Styles
     color_map = {'COLL': '#000000', 'TH': '#1f77b4', 'TH_AD':'#9467bd', 'TV_RMS': '#d62728'}
     ls_map    = {'COLL':'-', 'TH':'-.', 'TH_AD':':', 'TV_RMS':'--'}
     label_map = {'COLL':'collisionless', 'TH':'thermal (PL08)', 'TH_AD':'thermal (adiabatic)', 'TV_RMS':'thermal+vcb (RMS)'}
 
-    # k-grid for integrations
     k_wide_h = np.logspace(-4, 2.5, 1000)
     k_wide_Mpc = h * k_wide_h
 
@@ -298,25 +295,18 @@ def main():
         fig, (ax, axr) = plt.subplots(2, 1, figsize=(9.6, 8.0),
                                        gridspec_kw={'height_ratios':[3,1.4]}, sharex=True)
 
-        # Base P0(k) from delta
         k_meas_h, P0_meas_h, z_used = build_P0h_from_collisionless(z)
         Pk_of_k = make_pk_extrapolator(k_meas_h, P0_meas_h)
         P_coll_h = Pk_of_k(k_wide_h)
 
-        # Thermal-only S(k): PL08
-        S_th = S_of_k(k_wide_Mpc, z, include_thermal=True, vcb_func_or_none=None, cs_kms_func=None)
-
-        # Thermal-only S(k): Adiabatic 
-        S_th_ad = S_of_k(k_wide_Mpc, z, include_thermal=True, vcb_func_or_none=None, cs_kms_func=gas_sound_speed_kms_adiab)
-
-        # thermal+vcb (global RMS)
+        S_th     = S_of_k(k_wide_Mpc, z, include_thermal=True, vcb_func_or_none=None, cs_kms_func=None)
+        S_th_ad  = S_of_k(k_wide_Mpc, z, include_thermal=True, vcb_func_or_none=None, cs_kms_func=gas_sound_speed_kms_adiab)
         S_tv_rms = S_of_k(k_wide_Mpc, z, include_thermal=True, vcb_func_or_none=vcb_rms_kms, cs_kms_func=None)
 
-        # Spectra
         spectra = {
             'COLL'   : P_coll_h,
             'TH'     : P_coll_h * (S_th**2),
-            'TH_AD'  : P_coll_h * (S_th_ad**2),     
+            'TH_AD'  : P_coll_h * (S_th_ad**2),
             'TV_RMS' : P_coll_h * (S_tv_rms**2),
         }
 
@@ -327,7 +317,6 @@ def main():
             dn_map[key] = dn
             sigma_map[key] = sigma
 
-        # Absolute HMF (top)
         ax.loglog(M_grid, dn_map['COLL'],   linestyle=ls_map['COLL'],   color=color_map['COLL'],   lw=2.1, label=label_map['COLL'])
         ax.loglog(M_grid, dn_map['TH'],     linestyle=ls_map['TH'],     color=color_map['TH'],     lw=2.1, label=label_map['TH'])
         ax.loglog(M_grid, dn_map['TH_AD'],  linestyle=ls_map['TH_AD'],  color=color_map['TH_AD'],  lw=2.1, label=label_map['TH_AD'])
@@ -338,19 +327,18 @@ def main():
         ax.grid(alpha=0.35, which="both")
         ax.legend(frameon=False, fontsize=10)
 
-        # Ratio panel (bottom)
         eps = 1e-300
         axr.semilogx(M_grid, dn_map['TH']/np.maximum(dn_map['COLL'],eps),     color=color_map['TH'],     lw=1.8, label='TH/COLL')
         axr.semilogx(M_grid, dn_map['TH_AD']/np.maximum(dn_map['COLL'],eps),  color=color_map['TH_AD'],  lw=1.8, label='TH_AD/COLL')
         axr.semilogx(M_grid, dn_map['TV_RMS']/np.maximum(dn_map['COLL'],eps), color=color_map['TV_RMS'], lw=1.8, label='TV_RMS/COLL')
 
-        axr.set_xlabel(r"$M\ [M_\odot]$")
+        axr.set_xlabel(r"$M\ [h^{-1}\,M_\odot]$")
         axr.set_ylabel("ratio")
         axr.grid(alpha=0.25, which='both')
         axr.legend(frameon=False, fontsize=9, loc='lower left')
 
         fig.tight_layout()
-        out_path = os.path.join(OUTDIR_PLOTS, f"hmf_ps_z{int(z)}_adiab.png")
+        out_path = os.path.join(OUTDIR_PLOTS, f"hmf_ps_z{int(z)}_hminvMsun.png")
         plt.savefig(out_path, dpi=260, bbox_inches="tight")
         plt.close(fig)
         print(f"Figure saved to: {out_path}")
@@ -377,7 +365,7 @@ def make_pk_extrapolator(k_h, P_h):
         inside = (lkq>=lkmin) & (lkq<=lkmax)
         out[inside] = base(lkq[inside])
         out[(lkq<lkmin)] = lPmin + s_lo*(lkq[(lkq<lkmin)] - lkmin)
-        s_hi_clamped = min(s_hi, -2.5)   # suppress unphysical upturn
+        s_hi_clamped = min(s_hi, -2.5)
         out[(lkq>lkmax)] = lPmax + s_hi_clamped*(lkq[(lkq>lkmax)] - lkmax)
         return np.exp(out)
     return Pk_of_k
